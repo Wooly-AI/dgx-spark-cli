@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/weatherman/dgx-manager/pkg/types"
@@ -63,7 +64,39 @@ func (c *Client) Connect() error {
 	addr := fmt.Sprintf("%s:%d", c.config.Host, c.config.Port)
 	client, err := ssh.Dial("tcp", addr, sshConfig)
 	if err != nil {
-		return fmt.Errorf("failed to connect to %s: %w", addr, err)
+		// Check if it's a known_hosts error
+		if strings.Contains(err.Error(), "knownhosts:") || strings.Contains(err.Error(), "key is unknown") {
+			fmt.Fprintf(os.Stderr, "\n⚠️  Host key for %s not found in known_hosts\n", c.config.Host)
+			fmt.Fprintf(os.Stderr, "This is normal for first-time connections.\n\n")
+			fmt.Fprintf(os.Stderr, "Add host key to ~/.ssh/known_hosts? [Y/n]: ")
+
+			var response string
+			fmt.Scanln(&response)
+
+			if response == "" || strings.ToLower(response) == "y" {
+				if err := c.addHostKey(); err != nil {
+					return fmt.Errorf("failed to add host key: %w", err)
+				}
+
+				fmt.Fprintf(os.Stderr, "✓ Host key added. Retrying connection...\n\n")
+
+				// Retry connection with updated known_hosts
+				hostKeyCallback, err = knownhosts.New(knownHostsPath)
+				if err != nil {
+					return fmt.Errorf("failed to reload known_hosts: %w", err)
+				}
+				sshConfig.HostKeyCallback = hostKeyCallback
+
+				client, err = ssh.Dial("tcp", addr, sshConfig)
+				if err != nil {
+					return fmt.Errorf("failed to connect after adding host key: %w", err)
+				}
+			} else {
+				return fmt.Errorf("connection aborted: host key not trusted")
+			}
+		} else {
+			return fmt.Errorf("failed to connect to %s: %w", addr, err)
+		}
 	}
 
 	c.client = client
@@ -75,6 +108,36 @@ func (c *Client) Close() error {
 	if c.client != nil {
 		return c.client.Close()
 	}
+	return nil
+}
+
+// addHostKey adds the host key to known_hosts
+func (c *Client) addHostKey() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	knownHostsPath := fmt.Sprintf("%s/.ssh/known_hosts", home)
+
+	// Run ssh-keyscan
+	cmd := exec.Command("ssh-keyscan", "-H", c.config.Host)
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to scan host key: %w", err)
+	}
+
+	// Append to known_hosts
+	f, err := os.OpenFile(knownHostsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to open known_hosts: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := f.Write(output); err != nil {
+		return fmt.Errorf("failed to write to known_hosts: %w", err)
+	}
+
 	return nil
 }
 
