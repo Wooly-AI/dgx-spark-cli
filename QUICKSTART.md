@@ -164,6 +164,9 @@ dgx sync --delete ./local dgx:~/remote
 ```bash
 dgx mutagen create ./src dgx:~/src --name src-sync
 dgx mutagen list
+dgx mutagen monitor src-sync
+dgx mutagen pause src-sync
+dgx mutagen resume src-sync
 dgx mutagen terminate src-sync
 ```
 

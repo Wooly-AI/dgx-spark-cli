@@ -914,6 +914,46 @@ var mutagenTerminateCmd = &cobra.Command{
 	},
 }
 
+var mutagenPauseCmd = &cobra.Command{
+	Use:   "pause <name>",
+	Short: "Pause a Mutagen sync session",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		ensureMutagen()
+		runMutagen("sync", "pause", args[0])
+	},
+}
+
+var mutagenResumeCmd = &cobra.Command{
+	Use:   "resume <name>",
+	Short: "Resume a paused Mutagen sync session",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		ensureMutagen()
+		runMutagen("sync", "resume", args[0])
+	},
+}
+
+var mutagenMonitorCmd = &cobra.Command{
+	Use:   "monitor <name>",
+	Short: "Monitor a Mutagen sync session",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		ensureMutagen()
+		runMutagen("sync", "monitor", args[0])
+	},
+}
+
+var mutagenProjectApplyCmd = &cobra.Command{
+	Use:   "project-apply <file>",
+	Short: "Apply a Mutagen project file",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		ensureMutagen()
+		runMutagen("project", "apply", args[0])
+	},
+}
+
 var envWandbCmd = &cobra.Command{
 	Use:   "wandb",
 	Short: "Set WANDB_API_KEY on the DGX",
@@ -1007,6 +1047,10 @@ func init() {
 	mutagenCmd.AddCommand(mutagenCreateCmd)
 	mutagenCmd.AddCommand(mutagenListCmd)
 	mutagenCmd.AddCommand(mutagenTerminateCmd)
+	mutagenCmd.AddCommand(mutagenPauseCmd)
+	mutagenCmd.AddCommand(mutagenResumeCmd)
+	mutagenCmd.AddCommand(mutagenMonitorCmd)
+	mutagenCmd.AddCommand(mutagenProjectApplyCmd)
 
 	// Add all commands to root
 	rootCmd.AddCommand(configCmd)
