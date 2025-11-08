@@ -99,6 +99,44 @@ dgx run nvfp4 quantize mistralai/Mistral-7B-v0.1
 dgx sync dgx:~/nvfp4_output ./quantized_models
 ```
 
+### Docker Model Runner (DMR)
+
+Full integration with Docker's `docker model` CLI makes it easy to run the
+[Docker Model Runner](https://www.docker.com/blog/introducing-docker-model-runner/)
+and the workflows documented in the
+[official guide](https://docs.docker.com/ai/model-runner/).
+
+**Bootstrap the runner:**
+```bash
+# Install Docker plugin + NVIDIA container runtime bits
+dgx run dmr setup
+
+# Launch the standalone runner container
+dgx run dmr install
+```
+
+**Model lifecycle:**
+```bash
+# Pull from Docker Hub / Hugging Face / nvcr.io
+dgx run dmr pull ai/smollm2:360M-Q4_K_M
+
+# Single-prompt inference
+dgx run dmr run ai/smollm2:360M-Q4_K_M "Explain reinforcement learning"
+
+# Inventory + health checks
+dgx run dmr list
+dgx run dmr status
+dgx run dmr logs --tail 100
+
+# Update or remove the controller
+dgx run dmr update
+dgx run dmr uninstall
+```
+
+Interactive chat requires a TTY: connect with `dgx connect` and run
+`docker model run <model>` directly for multi-turn sessions. Read more in the
+[docker/model-runner](https://github.com/docker/model-runner) repository.
+
 ## Workflow Examples
 
 ### Complete Ollama Setup

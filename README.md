@@ -10,6 +10,7 @@ A powerful CLI tool to manage connections, SSH tunnels, GPU monitoring, and AI/M
 - **File Synchronization** - Easy rsync-based file transfers
 - **Configuration Management** - Persistent connection settings
 - **Integrated Playbooks** - Run Ollama, vLLM, NVFP4 quantization, and more with simple commands
+- **Docker Model Runner Integration** - Install and drive Docker's DMR (`docker model` CLI) directly on your DGX Spark
 
 ## Installation
 
@@ -147,6 +148,40 @@ dgx gpu --raw
 # ├─────────────────────────────────────────────────────────────────────┤
 # └─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Docker Model Runner (DMR)
+
+Leverage Docker's AI workflow tooling directly on the DGX Spark without SSHing
+in manually. These helpers wrap the steps described in the
+[Docker Model Runner announcement](https://www.docker.com/blog/introducing-docker-model-runner/)
+and the [official docs](https://docs.docker.com/ai/model-runner/):
+
+```bash
+# Install Docker Engine plugin + NVIDIA runtime support (Ubuntu/DGX)
+dgx run dmr setup
+
+# Provision the standalone runner container (port 12434)
+dgx run dmr install
+
+# Pull models from Docker Hub, Hugging Face, or nvcr.io
+dgx run dmr pull ai/smollm2:360M-Q4_K_M
+
+# Single-prompt inference (add your prompt after the model reference)
+dgx run dmr run ai/smollm2:360M-Q4_K_M "Explain quantum computing"
+
+# Inventory + health checks
+dgx run dmr list
+dgx run dmr status
+dgx run dmr logs --tail 100
+
+# Re-install controller bits in place
+dgx run dmr update
+```
+
+Interactive chat mode requires a TTY. Use `dgx connect` and run
+`docker model run <model>` directly for multi-turn chats, or remove the runner
+with `dgx run dmr uninstall` if you need a clean slate. The underlying CLI is
+open source at [docker/model-runner](https://github.com/docker/model-runner).
 
 ### File Synchronization
 
