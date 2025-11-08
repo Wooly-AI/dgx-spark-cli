@@ -156,7 +156,31 @@ dgx gpu --raw
 
 ### Docker Model Runner (DMR)
 
-Use the built-in `dgx exec` and `dgx tunnel` commands to operate Docker Model Runner remotely — no extra integration required:
+#### Integrated commands
+
+```bash
+# Prepare Docker + GPU runtime bits
+dgx run dmr setup
+
+# Install/upgrade the standalone runner
+dgx run dmr install
+
+# Manage models via Docker Hub/Hugging Face/nvcr.io
+dgx run dmr pull ai/smollm2:360M-Q4_K_M
+dgx run dmr list
+
+dgx run dmr run ai/smollm2:360M-Q4_K_M "Explain quantum computing"
+dgx run dmr status
+dgx run dmr logs --tail 100
+
+# Update or remove the controller
+dgx run dmr update
+dgx run dmr uninstall
+```
+
+#### Remote control quick reference
+
+Use the built-in `dgx exec` and `dgx tunnel` commands when you need custom Docker Model Runner invocations:
 
 ```bash
 # Run any docker model command on the DGX

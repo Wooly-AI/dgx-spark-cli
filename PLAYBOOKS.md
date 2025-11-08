@@ -101,7 +101,26 @@ dgx sync dgx:~/nvfp4_output ./quantized_models
 
 ### Docker Model Runner (DMR)
 
-Operate Docker Model Runner through the stock commands:
+Operate Docker Model Runner through the built-in playbook:
+
+```bash
+# Bootstrap (Docker plugin + runner container)
+dgx run dmr setup
+dgx run dmr install
+
+# Model lifecycle
+dgx run dmr pull ai/smollm2:360M-Q4_K_M
+dgx run dmr list
+
+dgx run dmr run ai/smollm2:360M-Q4_K_M "Explain reinforcement learning"
+dgx run dmr status
+dgx run dmr logs --tail 100
+
+dgx run dmr update
+dgx run dmr uninstall
+```
+
+Need to issue bespoke commands? Use `dgx exec` + `dgx tunnel`:
 
 ```bash
 # Run docker model commands remotely
@@ -112,15 +131,14 @@ dgx tunnel create 12434:12434 "Docker Model Runner"
 ```
 
 Sample flow:
-1. `dgx exec "docker model install-runner --gpu auto"`
-2. `dgx exec "docker model pull ai/smollm2:360M-Q4_K_M"`
-3. `dgx tunnel create 12434:12434 "Docker Model Runner"`
-4. `curl http://localhost:12434/models`
-5. Close with `dgx tunnel kill <PID>` when done.
+1. `dgx run dmr setup`
+2. `dgx run dmr install`
+3. `dgx run dmr pull ai/smollm2:360M-Q4_K_M`
+4. `dgx tunnel create 12434:12434 "Docker Model Runner"`
+5. `curl http://localhost:12434/models`
+6. Tear down with `dgx run dmr uninstall` if you need a clean slate.
 
-Use `dgx connect` for interactive chats and refer to the
-[docker/model-runner](https://github.com/docker/model-runner) repo for the full
-feature set.
+Use `dgx connect` for interactive chats and refer to the [docker/model-runner](https://github.com/docker/model-runner) repo for the full feature set.
 
 ## Workflow Examples
 
