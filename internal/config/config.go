@@ -133,13 +133,22 @@ func (m *Manager) GetTunnel(id string) (*types.Tunnel, error) {
 func (m *Manager) defaultConfig() *types.Config {
 	home, _ := os.UserHomeDir()
 
-	return &types.Config{
+	cfg := &types.Config{
 		Host:         "", // User must configure
 		Port:         22,
 		User:         "",
 		IdentityFile: filepath.Join(home, ".ssh", "id_ed25519"),
 		Tunnels:      []types.Tunnel{},
 	}
+
+	if profile, err := DetectNVSyncProfile(); err == nil && profile != nil {
+		cfg.Host = profile.Host
+		cfg.Port = profile.Port
+		cfg.User = profile.User
+		cfg.IdentityFile = profile.IdentityFile
+	}
+
+	return cfg
 }
 
 // GetConfigPath returns the path to the config file

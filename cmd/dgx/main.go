@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -66,6 +67,34 @@ var configSetCmd = &cobra.Command{
 	Short: "Set DGX configuration interactively",
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := cfgManager.Get()
+		home, _ := os.UserHomeDir()
+
+		defaultKeys := []string{
+			filepath.Join(home, ".ssh", "id_ed25519"),
+			filepath.Join(home, ".ssh", "id_rsa"),
+		}
+
+		profile, profileErr := config.DetectNVSyncProfile()
+		if profileErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: unable to inspect NVIDIA Sync config: %v\n", profileErr)
+		}
+		if profile != nil {
+			if cfg.Host == "" {
+				cfg.Host = profile.Host
+			}
+			if cfg.Port == 0 {
+				cfg.Port = profile.Port
+			}
+			if cfg.User == "" {
+				cfg.User = profile.User
+			}
+			fmt.Println("Detected NVIDIA Sync configuration.")
+			fmt.Printf("Defaults pulled from %s\n", profile.ConfigPath)
+			fmt.Printf("DGX user: %s@%s (port %d)\n", cfg.User, cfg.Host, cfg.Port)
+			fmt.Printf("Detected key: %s\n", profile.IdentityFile)
+			fmt.Println("Press Enter to accept each default or type a new value.")
+			fmt.Println()
+		}
 
 		fmt.Println("Configure DGX Spark Connection")
 		fmt.Println("================================")
@@ -105,52 +134,59 @@ var configSetCmd = &cobra.Command{
 		fmt.Println("SSH Key Setup")
 		fmt.Println("-------------")
 
-		// Check if default key exists
-		home, _ := os.UserHomeDir()
-		defaultKeys := []string{
-			home + "/.ssh/id_ed25519",
-			home + "/.ssh/id_rsa",
-		}
-
-		var foundKey string
-		for _, key := range defaultKeys {
-			if _, err := os.Stat(key); err == nil {
-				foundKey = key
-				break
+		keyConfigured := false
+		if profile != nil {
+			fmt.Printf("Use NVIDIA Sync SSH key at %s? [Y/n]: ", profile.IdentityFile)
+			var useNVSync string
+			fmt.Scanln(&useNVSync)
+			if useNVSync == "" || strings.ToLower(useNVSync) == "y" {
+				cfg.IdentityFile = profile.IdentityFile
+				keyConfigured = true
 			}
 		}
 
-		if foundKey != "" {
-			fmt.Printf("Found SSH key: %s\n", foundKey)
-			fmt.Print("Use this key? [Y/n]: ")
-			var useKey string
-			fmt.Scanln(&useKey)
-			if useKey == "" || strings.ToLower(useKey) == "y" {
-				cfg.IdentityFile = foundKey
-			} else {
-				fmt.Print("Enter SSH key path: ")
-				var customKey string
-				fmt.Scanln(&customKey)
-				if customKey != "" {
-					cfg.IdentityFile = customKey
+		if !keyConfigured {
+			// Check if default key exists
+			var foundKey string
+			for _, key := range defaultKeys {
+				if _, err := os.Stat(key); err == nil {
+					foundKey = key
+					break
 				}
 			}
-		} else {
-			fmt.Println("Warning: No SSH key found in ~/.ssh/")
-			fmt.Println()
-			fmt.Println("To generate a new SSH key, run:")
-			fmt.Println("  ssh-keygen -t ed25519 -C \"your-email@example.com\"")
-			fmt.Println()
-			fmt.Println("Then copy it to your DGX:")
-			fmt.Printf("  ssh-copy-id %s@%s\n", cfg.User, cfg.Host)
-			fmt.Println()
-			fmt.Print("Enter SSH key path (or press Enter to use default): ")
-			var keyPath string
-			fmt.Scanln(&keyPath)
-			if keyPath != "" {
-				cfg.IdentityFile = keyPath
+
+			if foundKey != "" {
+				fmt.Printf("Found SSH key: %s\n", foundKey)
+				fmt.Print("Use this key? [Y/n]: ")
+				var useKey string
+				fmt.Scanln(&useKey)
+				if useKey == "" || strings.ToLower(useKey) == "y" {
+					cfg.IdentityFile = foundKey
+				} else {
+					fmt.Print("Enter SSH key path: ")
+					var customKey string
+					fmt.Scanln(&customKey)
+					if customKey != "" {
+						cfg.IdentityFile = customKey
+					}
+				}
 			} else {
-				cfg.IdentityFile = home + "/.ssh/id_ed25519"
+				fmt.Println("Warning: No SSH key found in ~/.ssh/")
+				fmt.Println()
+				fmt.Println("To generate a new SSH key, run:")
+				fmt.Println("  ssh-keygen -t ed25519 -C \"your-email@example.com\"")
+				fmt.Println()
+				fmt.Println("Then copy it to your DGX:")
+				fmt.Printf("  ssh-copy-id %s@%s\n", cfg.User, cfg.Host)
+				fmt.Println()
+				fmt.Print("Enter SSH key path (or press Enter to use default): ")
+				var keyPath string
+				fmt.Scanln(&keyPath)
+				if keyPath != "" {
+					cfg.IdentityFile = keyPath
+				} else {
+					cfg.IdentityFile = filepath.Join(home, ".ssh", "id_ed25519")
+				}
 			}
 		}
 
@@ -165,7 +201,8 @@ var configSetCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		fmt.Println("\nConfiguration saved!")
+		fmt.Println()
+		fmt.Println("Configuration saved!")
 		fmt.Printf("Config file: %s\n", cfgManager.GetConfigPath())
 		fmt.Println()
 		fmt.Println("Next steps:")
@@ -191,8 +228,8 @@ var configShowCmd = &cobra.Command{
 
 // connect command
 var connectCmd = &cobra.Command{
-	Use:   "connect",
-	Short: "Open an interactive SSH shell to DGX",
+	Use:     "connect",
+	Short:   "Open an interactive SSH shell to DGX",
 	Aliases: []string{"ssh"},
 	Run: func(cmd *cobra.Command, args []string) {
 		client, err := ssh.NewClient(cfgManager.Get())
@@ -239,16 +276,16 @@ var statusCmd = &cobra.Command{
 
 // tunnel command
 var tunnelCmd = &cobra.Command{
-	Use:   "tunnel",
-	Short: "Manage SSH tunnels",
+	Use:     "tunnel",
+	Short:   "Manage SSH tunnels",
 	Aliases: []string{"t", "forward"},
 }
 
 var tunnelCreateCmd = &cobra.Command{
-	Use:   "create <local-port>:<remote-port> [description]",
-	Short: "Create a new SSH tunnel",
+	Use:     "create <local-port>:<remote-port> [description]",
+	Short:   "Create a new SSH tunnel",
 	Aliases: []string{"add", "new"},
-	Args:  cobra.MinimumNArgs(1),
+	Args:    cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		parts := strings.Split(args[0], ":")
 		if len(parts) != 2 {
@@ -300,8 +337,8 @@ var tunnelCreateCmd = &cobra.Command{
 }
 
 var tunnelListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List active SSH tunnels",
+	Use:     "list",
+	Short:   "List active SSH tunnels",
 	Aliases: []string{"ls"},
 	Run: func(cmd *cobra.Command, args []string) {
 		tm := tunnel.NewManager(cfgManager.Get())
@@ -326,10 +363,10 @@ var tunnelListCmd = &cobra.Command{
 }
 
 var tunnelKillCmd = &cobra.Command{
-	Use:   "kill <pid>",
-	Short: "Kill a specific tunnel by PID",
+	Use:     "kill <pid>",
+	Short:   "Kill a specific tunnel by PID",
 	Aliases: []string{"stop", "rm"},
-	Args:  cobra.ExactArgs(1),
+	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		pid, err := strconv.Atoi(args[0])
 		if err != nil {
@@ -497,7 +534,8 @@ var setupKeyCmd = &cobra.Command{
 			fmt.Println("  dgx status")
 			fmt.Println("  dgx gpu")
 		} else {
-			fmt.Println("\nUse one of the methods above to copy your SSH key manually.")
+			fmt.Println()
+			fmt.Println("Use one of the methods above to copy your SSH key manually.")
 		}
 	},
 }
@@ -510,8 +548,8 @@ var playbookCmd = &cobra.Command{
 }
 
 var playbookListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available playbooks",
+	Use:     "list",
+	Short:   "List available playbooks",
 	Aliases: []string{"ls"},
 	Run: func(cmd *cobra.Command, args []string) {
 		playbooks := playbook.GetAvailablePlaybooks()
@@ -523,7 +561,8 @@ var playbookListCmd = &cobra.Command{
 		}
 
 		fmt.Println("Available DGX Spark Playbooks")
-		fmt.Println("=============================\n")
+		fmt.Println("=============================")
+		fmt.Println()
 
 		for category, pbs := range categories {
 			fmt.Printf("## %s\n", category)
@@ -535,7 +574,8 @@ var playbookListCmd = &cobra.Command{
 
 		fmt.Println("Usage:")
 		fmt.Println("  dgx run <playbook> <command> [args...]")
-		fmt.Println("\nExamples:")
+		fmt.Println()
+		fmt.Println("Examples:")
 		fmt.Println("  dgx run ollama install")
 		fmt.Println("  dgx run ollama pull qwen2.5:32b")
 		fmt.Println("  dgx run vllm serve meta-llama/Llama-2-7b-hf")
