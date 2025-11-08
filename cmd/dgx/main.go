@@ -706,6 +706,51 @@ func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
+func expandPath(p string) (string, error) {
+	if p == "" {
+		return "", fmt.Errorf("path cannot be empty")
+	}
+	if strings.HasPrefix(p, "~") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		p = filepath.Join(home, strings.TrimPrefix(p, "~"))
+	}
+	p = os.ExpandEnv(p)
+	return filepath.Abs(p)
+}
+
+func ensureRemoteDirectory(path string) error {
+	client, err := ssh.NewClient(cfgManager.Get())
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	if _, err := client.Execute(fmt.Sprintf("mkdir -p %s", path)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func syncDirectoryToRemote(localPath, remotePath string) error {
+	cfg := cfgManager.Get()
+	sshCmd := fmt.Sprintf("ssh -i %q -p %d", cfg.IdentityFile, cfg.Port)
+	local := ensureTrailingSlash(localPath)
+	remote := fmt.Sprintf("%s@%s:%s", cfg.User, cfg.Host, ensureTrailingSlash(remotePath))
+	cmd := exec.Command("rsync", "-az", "--delete", "-e", sshCmd, local, remote)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func ensureTrailingSlash(path string) string {
+	if strings.HasSuffix(path, "/") {
+		return path
+	}
+	return path + "/"
+}
+
 // env command
 var envCmd = &cobra.Command{
 	Use:   "env",
@@ -729,6 +774,61 @@ var envHFTokenCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	},
+}
+
+// codex command
+var codexCmd = &cobra.Command{
+	Use:   "codex",
+	Short: "Manage OpenAI Codex CLI setup",
+}
+
+var codexSetAPIKeyCmd = &cobra.Command{
+	Use:   "set-api-key",
+	Short: "Store CODEX_API_KEY on the DGX",
+	Run: func(cmd *cobra.Command, args []string) {
+		value, _ := cmd.Flags().GetString("value")
+		if value == "" {
+			var err error
+			value, err = promptForSecret("Codex API key")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		if err := setRemoteEnvVar("CODEX_API_KEY", value); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	},
+}
+
+var codexImportConfigCmd = &cobra.Command{
+	Use:   "import-config",
+	Short: "Sync the local ~/.codex directory to the DGX",
+	Run: func(cmd *cobra.Command, args []string) {
+		pathFlag, _ := cmd.Flags().GetString("path")
+		localPath, err := expandPath(pathFlag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if _, err := os.Stat(localPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		if err := ensureRemoteDirectory("~/.codex"); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		if err := syncDirectoryToRemote(localPath, "~/.codex"); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Println("Copied local Codex configuration to DGX (~/.codex).")
 	},
 }
 
@@ -812,6 +912,12 @@ func init() {
 	envCmd.AddCommand(envHFTokenCmd)
 	envCmd.AddCommand(envWandbCmd)
 
+	// codex subcommands
+	codexSetAPIKeyCmd.Flags().String("value", "", "API key to set (omit to be prompted)")
+	codexImportConfigCmd.Flags().String("path", "~/.codex", "Local Codex config directory")
+	codexCmd.AddCommand(codexSetAPIKeyCmd)
+	codexCmd.AddCommand(codexImportConfigCmd)
+
 	// Add all commands to root
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(connectCmd)
@@ -825,4 +931,5 @@ func init() {
 	rootCmd.AddCommand(execCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(envCmd)
+	rootCmd.AddCommand(codexCmd)
 }

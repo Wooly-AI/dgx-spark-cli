@@ -208,21 +208,32 @@ dgx tunnel kill <PID>
 
 Check the [Docker Model Runner blog](https://www.docker.com/blog/introducing-docker-model-runner/), the [official docs](https://docs.docker.com/ai/model-runner/), and the [docker/model-runner](https://github.com/docker/model-runner) repository for full workflows.
 
-### Environment Tokens (HF / W&B)
+### Environment Tokens (HF / W&B / Codex)
 
 Use the built-in helpers to persist secrets on the DGX (they're stored in `~/.config/dgx/env.sh` and sourced via `~/.bashrc`):
 
 ```bash
 # Hugging Face
-dgx env hf-token  # prompts for the token
-dgx env hf-token --value hf_xxx  # non-interactive
+dgx env hf-token
+dgx env hf-token --value hf_xxx
 
 # Weights & Biases
 dgx env wandb
-dgx env wandb --value xxxxxx
+dgx env wandb --value xxx
+
+# OpenAI Codex
+dgx codex set-api-key
+dgx codex set-api-key --value sk-...
 ```
 
-After running these commands, reconnect or source `~/.config/dgx/env.sh` on the DGX to pick up the variables.
+Need to copy an existing Codex login from your laptop?
+
+```bash
+# Sync ~/.codex up to the DGX
+dgx codex import-config --path ~/.codex
+```
+
+After running these commands, reconnect or `source ~/.config/dgx/env.sh` on the DGX so shells and playbooks see the new values.
 
 ### File Synchronization
 
