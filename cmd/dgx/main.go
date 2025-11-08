@@ -782,6 +782,11 @@ func resolveRemotePath(input string, cfg *types.Config) string {
 var envCmd = &cobra.Command{
 	Use:   "env",
 	Short: "Manage environment tokens on your DGX",
+	Long: `Store secrets (HF_TOKEN, WANDB_API_KEY, etc.) in ~/.config/dgx/env.sh so every shell on the DGX picks them up.
+
+Examples:
+  dgx env hf-token
+  dgx env wandb --value your_api_key`,
 }
 
 var envHFTokenCmd = &cobra.Command{
@@ -808,6 +813,11 @@ var envHFTokenCmd = &cobra.Command{
 var codexCmd = &cobra.Command{
 	Use:   "codex",
 	Short: "Manage OpenAI Codex CLI setup",
+	Long: `Authorize the OpenAI Codex CLI on the DGX using either an API key or an imported ~/.codex config.
+
+Examples:
+  dgx codex set-api-key --value sk-...
+  dgx codex import-config --path ~/.codex`,
 }
 
 var codexSetAPIKeyCmd = &cobra.Command{
@@ -863,6 +873,12 @@ var codexImportConfigCmd = &cobra.Command{
 var mutagenCmd = &cobra.Command{
 	Use:   "mutagen",
 	Short: "Manage Mutagen sync sessions",
+	Long: `Create, monitor, and control Mutagen sync sessions for low-latency file replication between your laptop and the DGX.
+
+Examples:
+  dgx mutagen create ./src dgx:~/src --name src-sync
+  dgx mutagen pause src-sync
+  dgx mutagen monitor src-sync`,
 }
 
 var mutagenCreateCmd = &cobra.Command{

@@ -15,6 +15,8 @@ A powerful CLI tool to manage connections, SSH tunnels, GPU monitoring, and AI/M
 - **Configuration Management** - Persistent connection settings
 - **Integrated Playbooks** - Run Ollama, vLLM, NVFP4 quantization, and more with simple commands
 - **Docker Model Runner Integration** - Install and drive Docker's DMR (`docker model` CLI) directly on your DGX Spark
+- **Mutagen-Powered Sync** - Create/pause/resume monitorable sync sessions via `dgx mutagen ...`
+- **Secret & API Key Management** - Store HF, W&B, Codex tokens on the DGX with `dgx env ...` and `dgx codex ...`
 
 ## Installation
 
@@ -238,6 +240,12 @@ dgx codex import-config --path ~/.codex
 ```
 
 After running these commands, reconnect or `source ~/.config/dgx/env.sh` on the DGX so shells and playbooks see the new values.
+
+### OpenAI Codex CLI
+
+- **API key flow:** `dgx codex set-api-key [--value sk-...]` saves `CODEX_API_KEY` and updates the Codex CLI config on the DGX so browser auth isn’t needed.
+- **Browser flow (import):** Run `codex login` on your laptop, then `dgx codex import-config --path ~/.codex` to copy the resulting credentials to the DGX.
+- **Usage reminder:** After either flow, run Codex commands on the DGX via `dgx exec "codex <cmd>"` (or inside `dgx connect`).
 
 ### File Synchronization
 
