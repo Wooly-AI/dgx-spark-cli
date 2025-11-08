@@ -60,11 +60,6 @@ func GetAvailablePlaybooks() []Playbook {
 			Category:    CategoryInference,
 		},
 		{
-			Name:        "dmr",
-			Description: "Docker Model Runner (docker model CLI)",
-			Category:    CategoryInference,
-		},
-		{
 			Name:        "speculative-decoding",
 			Description: "Faster inference with speculative decoding",
 			Category:    CategoryInference,
@@ -154,8 +149,6 @@ func (m *Manager) Execute(playbookName string, args []string) error {
 		return m.runVLLM(args)
 	case "nvfp4":
 		return m.runNVFP4(args)
-	case "dmr":
-		return m.runDMR(args)
 	default:
 		return fmt.Errorf("playbook '%s' is not yet implemented", playbook.Name)
 	}

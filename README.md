@@ -151,37 +151,29 @@ dgx gpu --raw
 
 ### Docker Model Runner (DMR)
 
-Leverage Docker's AI workflow tooling directly on the DGX Spark without SSHing
-in manually. These helpers wrap the steps described in the
-[Docker Model Runner announcement](https://www.docker.com/blog/introducing-docker-model-runner/)
-and the [official docs](https://docs.docker.com/ai/model-runner/):
+Use the built-in `dgx exec` and `dgx tunnel` commands to operate Docker Model
+Runner remotely — no extra integration required:
 
 ```bash
-# Install Docker Engine plugin + NVIDIA runtime support (Ubuntu/DGX)
-dgx run dmr setup
+# Run any docker model command on the DGX
+dgx exec "docker model run ai/smollm2:360M-Q4_K_M 'Explain quantum computing'"
 
-# Provision the standalone runner container (port 12434)
-dgx run dmr install
+# Inspect health/logs
+dgx exec "docker model status"
+dgx exec "docker model logs --tail 100"
 
-# Pull models from Docker Hub, Hugging Face, or nvcr.io
-dgx run dmr pull ai/smollm2:360M-Q4_K_M
+# Forward the HTTP API (default 12434) to localhost
+dgx tunnel create 12434:12434 "Docker Model Runner"
 
-# Single-prompt inference (add your prompt after the model reference)
-dgx run dmr run ai/smollm2:360M-Q4_K_M "Explain quantum computing"
-
-# Inventory + health checks
-dgx run dmr list
-dgx run dmr status
-dgx run dmr logs --tail 100
-
-# Re-install controller bits in place
-dgx run dmr update
+# Shut down the tunnel when finished
+dgx tunnel kill <PID>
 ```
 
-Interactive chat mode requires a TTY. Use `dgx connect` and run
-`docker model run <model>` directly for multi-turn chats, or remove the runner
-with `dgx run dmr uninstall` if you need a clean slate. The underlying CLI is
-open source at [docker/model-runner](https://github.com/docker/model-runner).
+For interactive `docker model run` sessions, connect with `dgx connect` first.
+Check the [Docker Model Runner blog](https://www.docker.com/blog/introducing-docker-model-runner/),
+the [official docs](https://docs.docker.com/ai/model-runner/), and the
+[docker/model-runner](https://github.com/docker/model-runner) repository for
+full workflows.
 
 ### File Synchronization
 

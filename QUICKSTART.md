@@ -107,33 +107,23 @@ dgx gpu --raw
 ### Docker Model Runner (DMR)
 
 ```bash
-# 1. Install Docker plugin + GPU runtime prerequisites (Ubuntu/DGX)
-dgx run dmr setup
+# Run docker model commands on the DGX through SSH
+dgx exec "docker model run ai/smollm2:360M-Q4_K_M 'Write a haiku about GPUs'"
 
-# 2. Deploy the standalone runner container
-dgx run dmr install
+# Inspect health/logs
+dgx exec "docker model status"
+dgx exec "docker model logs --tail 100"
 
-# 3. Pull a model from Docker Hub / Hugging Face / nvcr.io
-dgx run dmr pull ai/smollm2:360M-Q4_K_M
-
-# 4. Send a single-prompt inference request
-dgx run dmr run ai/smollm2:360M-Q4_K_M "Write a haiku about GPUs"
-
-# 5. Inspect runner health/logs
-dgx run dmr list
-dgx run dmr status
-dgx run dmr logs --tail 100
-
-# 6. Update or remove the runner
-dgx run dmr update
-dgx run dmr uninstall
+# Forward the DMR API (port 12434) to localhost
+dgx tunnel create 12434:12434 "Docker Model Runner"
 ```
 
-Interactive chat mode requires a shell. Run `dgx connect` and use
-`docker model run <model>` for multi-turn chats. For full details, see the
+Interactive sessions still require `dgx connect` so you can run
+`docker model run <model>` directly. See the
 [Docker Model Runner blog](https://www.docker.com/blog/introducing-docker-model-runner/),
 the [official docs](https://docs.docker.com/ai/model-runner/), and the
-[docker/model-runner](https://github.com/docker/model-runner) source repository.
+[docker/model-runner](https://github.com/docker/model-runner) repository for
+complete workflows.
 
 ### File Management
 
