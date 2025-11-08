@@ -30,6 +30,8 @@ Enter your DGX Spark details:
 - **Username**: Your SSH username
 - **SSH Key Path**: Path to your private key (default: `~/.ssh/id_ed25519`)
 
+**Tip**: If NVIDIA Sync is installed (macOS), the wizard automatically imports the host/user/port plus the bundled SSH key from `~/Library/Application Support/NVIDIA/Sync/config/ssh_config`. On Linux or Arch boxes without Sync it falls back to scanning `~/.ssh/id_ed25519` / `id_rsa`, so run `dgx setup-key` or `ssh-copy-id` if you’re starting from a fresh key.
+
 ### 2. Test Connection
 
 ```bash
