@@ -304,6 +304,8 @@ dgx exec docker ps
 dgx exec nvidia-smi
 ```
 
+*Ollama install may prompt for your DGX sudo password so the installer can write to /usr/local.*
+
 **See [PLAYBOOKS.md](PLAYBOOKS.md) for complete documentation and examples.**
 
 ## Workflow Examples

@@ -45,13 +45,11 @@ func (m *Manager) runOllama(args []string) error {
 func (m *Manager) ollamaInstall() error {
 	fmt.Println("Installing Ollama on DGX...")
 	fmt.Println("Running: curl -fsSL https://ollama.com/install.sh | sh")
+	fmt.Println("(You may be prompted for your DGX sudo password)")
 
-	output, err := m.sshClient.Execute("curl -fsSL https://ollama.com/install.sh | sh")
-	if err != nil {
+	if err := m.sshClient.RunInteractive("curl -fsSL https://ollama.com/install.sh | sh"); err != nil {
 		return fmt.Errorf("installation failed: %w", err)
 	}
-
-	fmt.Println(output)
 	fmt.Println("\nOllama installed successfully!")
 	return nil
 }

@@ -188,6 +188,23 @@ func (c *Client) InteractiveShell() error {
 	return cmd.Run()
 }
 
+// RunInteractive executes a command on the remote host with local stdin/stdout attached.
+func (c *Client) RunInteractive(command string) error {
+	args := []string{
+		"-i", c.config.IdentityFile,
+		"-p", fmt.Sprintf("%d", c.config.Port),
+		fmt.Sprintf("%s@%s", c.config.User, c.config.Host),
+		"bash", "-lc", command,
+	}
+
+	cmd := exec.Command("ssh", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}
+
 // CheckConnection tests the connection without keeping it open
 func (c *Client) CheckConnection() (time.Duration, error) {
 	start := time.Now()
