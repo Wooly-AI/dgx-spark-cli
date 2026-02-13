@@ -691,7 +691,7 @@ if source_line not in content:
 print(f"Stored {name} in {env_file} and ensured {bashrc} sources it.")
 `, varName)
 
-	command := fmt.Sprintf("ENV_VALUE=%s python3 - <<'PY'\n%s\nPY", shellQuote(encoded), script)
+	command := fmt.Sprintf("ENV_VALUE=%s python3 - <<'PY'\n%s\nPY", ssh.ShellQuote(encoded), script)
 	output, err := client.Execute(command)
 	if err != nil {
 		return fmt.Errorf("remote update failed: %w", err)
@@ -700,10 +700,6 @@ print(f"Stored {name} in {env_file} and ensured {bashrc} sources it.")
 		fmt.Println(strings.TrimSpace(output))
 	}
 	return nil
-}
-
-func shellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func expandPath(p string) (string, error) {
@@ -727,18 +723,23 @@ func ensureRemoteDirectory(path string) error {
 		return err
 	}
 	defer client.Close()
-	if _, err := client.Execute(fmt.Sprintf("mkdir -p %s", path)); err != nil {
+	if _, err := client.Execute(fmt.Sprintf("mkdir -p %s", ssh.ShellQuote(path))); err != nil {
 		return err
 	}
 	return nil
 }
 
-func syncDirectoryToRemote(localPath, remotePath string) error {
+func syncDirectoryToRemote(localPath, remotePath string, deleteExtraneous bool) error {
 	cfg := cfgManager.Get()
 	sshCmd := fmt.Sprintf("ssh -i %q -p %d", cfg.IdentityFile, cfg.Port)
 	local := ensureTrailingSlash(localPath)
 	remote := fmt.Sprintf("%s@%s:%s", cfg.User, cfg.Host, ensureTrailingSlash(remotePath))
-	cmd := exec.Command("rsync", "-az", "--delete", "-e", sshCmd, local, remote)
+	args := []string{"-az", "-e", sshCmd}
+	if deleteExtraneous {
+		args = append(args, "--delete")
+	}
+	args = append(args, local, remote)
+	cmd := exec.Command("rsync", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -860,7 +861,7 @@ var codexImportConfigCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if err := syncDirectoryToRemote(localPath, "~/.codex"); err != nil {
+		if err := syncDirectoryToRemote(localPath, "~/.codex", true); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}

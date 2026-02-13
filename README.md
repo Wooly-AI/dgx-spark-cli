@@ -304,7 +304,7 @@ dgx exec docker ps
 dgx exec nvidia-smi
 ```
 
-*Ollama install may prompt for your DGX sudo password so the installer can write to /usr/local.*
+*Ollama install and DMR setup will prompt for confirmation before downloading and executing remote scripts. You may also be prompted for your DGX sudo password.*
 
 **See [PLAYBOOKS.md](PLAYBOOKS.md) for complete documentation and examples.**
 
@@ -371,6 +371,20 @@ tunnels: []
 
 You can edit this file manually or use `dgx config set`. If NVIDIA Sync metadata is present (macOS/Ubuntu/Windows), the CLI seeds this file automatically the first time you run it so those platforms work without additional prompts while other distros continue to use the standard SSH key locations.
 
+## Security
+
+### SSH Host Key Verification
+
+On first connection, if `~/.ssh/known_hosts` does not exist, the CLI will prompt you to trust the remote host key before proceeding (trust-on-first-use model). The connection is refused if you decline. Subsequent connections verify the host key against `known_hosts` and will fail if the key has changed, protecting against man-in-the-middle attacks.
+
+### Remote Script Execution
+
+Playbook commands that download and execute remote scripts (`dgx run ollama install`, `dgx run dmr setup`) display a warning and require explicit `[Y/n]` confirmation before proceeding. These commands may run with elevated privileges on the DGX.
+
+### Input Sanitization
+
+All user-supplied values (model names, prompts, file paths) that are interpolated into remote shell commands are sanitized using shell quoting (`ssh.ShellQuote`) to prevent command injection attacks.
+
 ## Development
 
 ### Project Structure
@@ -380,9 +394,10 @@ dgx-manager/
 ├── cmd/dgx/           # Main application entry point
 ├── internal/
 │   ├── config/        # Configuration management
-│   ├── ssh/           # SSH client implementation
+│   ├── ssh/           # SSH client + ShellQuote utility
 │   ├── tunnel/        # Tunnel management
-│   └── gpu/           # GPU monitoring
+│   ├── gpu/           # GPU monitoring
+│   └── playbook/      # Playbook implementations (Ollama, vLLM, NVFP4, DMR)
 ├── pkg/types/         # Shared types
 ├── Taskfile.yaml      # Build automation
 └── README.md
@@ -413,6 +428,10 @@ task release
 Python tooling is managed with [uv](https://github.com/astral-sh/uv) — use it whenever you need to run or install Python-based utilities.
 
 ## Troubleshooting
+
+### First Connection Prompts for Host Key Trust
+
+On your first connection, you will be prompted to trust the DGX host key and create `~/.ssh/known_hosts`. This is normal — confirm with `Y` to proceed. If the host key changes unexpectedly on future connections, the CLI will refuse to connect (this protects against MITM attacks).
 
 ### Connection Fails
 

@@ -3,6 +3,8 @@ package playbook
 import (
 	"fmt"
 	"strings"
+
+	"github.com/weatherman/dgx-manager/internal/ssh"
 )
 
 // runVLLM handles vLLM playbook commands
@@ -59,7 +61,7 @@ func (m *Manager) vllmServe(model string) error {
 		nvcr.io/nvidia/vllm:25.09-py3 \
 		vllm serve %s \
 		--host 0.0.0.0 \
-		--port 8000`, model)
+		--port 8000`, ssh.ShellQuote(model))
 
 	output, err := m.sshClient.Execute(cmd)
 	if err != nil {

@@ -3,6 +3,8 @@ package playbook
 import (
 	"fmt"
 	"strings"
+
+	"github.com/weatherman/dgx-manager/internal/ssh"
 )
 
 // runNVFP4 handles NVFP4 quantization commands
@@ -66,21 +68,14 @@ func (m *Manager) nvfp4Quantize(modelName string) error {
 		fmt.Println("Or run with: HF_TOKEN=xxx dgx run nvfp4 quantize ...")
 	}
 
-	// Build quantization command
+	// Build quantization command -- model name passed via env var to avoid shell injection
 	cmd := fmt.Sprintf(`docker run --rm \
 		--gpus all \
 		-v ~/nvfp4_output:/workspace/output \
 		-e HF_TOKEN=$HF_TOKEN \
+		-e MODEL_NAME=%s \
 		nvcr.io/nvidia/tensorrt:25.12-py3 \
-		bash -c "
-			git clone https://github.com/NVIDIA/TensorRT-Model-Optimizer.git /tmp/trt-opt && \
-			cd /tmp/trt-opt && \
-			pip install -e . && \
-			python examples/llm_ptq/hf_ptq.py \
-				--model_name %s \
-				--qformat fp4 \
-				--output_dir /workspace/output
-		"`, modelName)
+		bash -c 'git clone https://github.com/NVIDIA/TensorRT-Model-Optimizer.git /tmp/trt-opt && cd /tmp/trt-opt && pip install -e . && python examples/llm_ptq/hf_ptq.py --model_name "$MODEL_NAME" --qformat fp4 --output_dir /workspace/output'`, ssh.ShellQuote(modelName))
 
 	fmt.Println("\nStarting quantization...")
 	fmt.Println("(This will stream output from the DGX)")

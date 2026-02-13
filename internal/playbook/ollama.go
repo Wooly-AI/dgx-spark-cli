@@ -3,6 +3,8 @@ package playbook
 import (
 	"fmt"
 	"strings"
+
+	"github.com/weatherman/dgx-manager/internal/ssh"
 )
 
 // runOllama handles Ollama playbook commands
@@ -44,6 +46,14 @@ func (m *Manager) runOllama(args []string) error {
 // ollamaInstall installs Ollama on the DGX
 func (m *Manager) ollamaInstall() error {
 	fmt.Println("Installing Ollama on DGX...")
+	fmt.Println("This will download and execute a script from https://ollama.com/install.sh")
+	fmt.Print("Continue? [Y/n]: ")
+	var confirm string
+	fmt.Scanln(&confirm)
+	if confirm != "" && strings.ToLower(confirm) != "y" {
+		fmt.Println("Installation cancelled.")
+		return nil
+	}
 	fmt.Println("Running: curl -fsSL https://ollama.com/install.sh | sh")
 	fmt.Println("(You may be prompted for your DGX sudo password)")
 
@@ -137,7 +147,7 @@ func (m *Manager) ollamaRun(model string, prompt string) error {
 	// Single prompt mode
 	fmt.Printf("Running %s with prompt...\n", model)
 
-	cmd := fmt.Sprintf("ollama run %s '%s'", model, prompt)
+	cmd := fmt.Sprintf("ollama run %s %s", ssh.ShellQuote(model), ssh.ShellQuote(prompt))
 	output, err := m.sshClient.Execute(cmd)
 	if err != nil {
 		return fmt.Errorf("failed to run model: %w", err)

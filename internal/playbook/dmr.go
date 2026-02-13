@@ -3,6 +3,8 @@ package playbook
 import (
 	"fmt"
 	"strings"
+
+	"github.com/weatherman/dgx-manager/internal/ssh"
 )
 
 // runDMR handles Docker Model Runner helper commands
@@ -51,6 +53,14 @@ func (m *Manager) runDMR(args []string) error {
 
 func (m *Manager) dmrSetup() error {
 	fmt.Println("Installing Docker Model Runner prerequisites (Docker Engine, plugin, GPU runtime)...")
+	fmt.Println("Warning: This may download and run scripts from https://get.docker.com with sudo.")
+	fmt.Print("Continue? [Y/n]: ")
+	var confirm string
+	fmt.Scanln(&confirm)
+	if confirm != "" && strings.ToLower(confirm) != "y" {
+		fmt.Println("Setup cancelled.")
+		return nil
+	}
 
 	script := `set -euo pipefail
 if ! command -v docker >/dev/null 2>&1; then
@@ -154,7 +164,7 @@ func (m *Manager) dmrPull(model string, extra []string) error {
 	if model == "" {
 		return fmt.Errorf("model reference required")
 	}
-	cmd := fmt.Sprintf("docker model pull %s", shellQuote(model))
+	cmd := fmt.Sprintf("docker model pull %s", ssh.ShellQuote(model))
 	if len(extra) > 0 {
 		cmd += " " + strings.Join(extra, " ")
 	}
@@ -172,7 +182,7 @@ func (m *Manager) dmrRun(model string, prompt string) error {
 		return nil
 	}
 	fmt.Printf("Running %s via Docker Model Runner...\n", model)
-	cmd := fmt.Sprintf("docker model run %s %s", shellQuote(model), shellQuote(prompt))
+	cmd := fmt.Sprintf("docker model run %s %s", ssh.ShellQuote(model), ssh.ShellQuote(prompt))
 	output, err := m.sshClient.Execute(cmd)
 	if err != nil {
 		return fmt.Errorf("failed to run model: %w", err)
@@ -189,11 +199,4 @@ func (m *Manager) dmrUninstall() error {
 	}
 	fmt.Println(output)
 	return nil
-}
-
-func shellQuote(value string) string {
-	if value == "" {
-		return "''"
-	}
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }

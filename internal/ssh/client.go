@@ -43,11 +43,23 @@ func (c *Client) Connect() error {
 	// Load known_hosts
 	home, _ := os.UserHomeDir()
 	knownHostsPath := fmt.Sprintf("%s/.ssh/known_hosts", home)
+	// Create known_hosts if it doesn't exist, with user confirmation (TOFU model)
+	if _, statErr := os.Stat(knownHostsPath); os.IsNotExist(statErr) {
+		fmt.Fprintf(os.Stderr, "known_hosts file not found at %s\n", knownHostsPath)
+		fmt.Fprintf(os.Stderr, "Trust host key for %s and create known_hosts? [Y/n]: ", c.config.Host)
+		var response string
+		fmt.Scanln(&response)
+		if response != "" && strings.ToLower(response) != "y" {
+			return fmt.Errorf("connection aborted: host key not trusted")
+		}
+		if err := c.addHostKey(); err != nil {
+			return fmt.Errorf("failed to initialize known_hosts: %w", err)
+		}
+	}
+
 	hostKeyCallback, err := knownhosts.New(knownHostsPath)
 	if err != nil {
-		// If known_hosts doesn't exist, use insecure (warn user)
-		fmt.Fprintf(os.Stderr, "Warning: Using insecure host key verification\n")
-		hostKeyCallback = ssh.InsecureIgnoreHostKey()
+		return fmt.Errorf("failed to load known_hosts (%s): %w", knownHostsPath, err)
 	}
 
 	// SSH client configuration
@@ -312,4 +324,13 @@ func (c *Client) Rsync(source, dest string, deleteExtraneous bool) error {
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
+}
+
+// ShellQuote safely quotes a string for use in shell commands.
+// It wraps the value in single quotes and escapes any embedded single quotes.
+func ShellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
