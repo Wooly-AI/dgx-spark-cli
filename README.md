@@ -3,10 +3,11 @@
 [![Build](https://github.com/jwjohns/dgx-spark-cli/actions/workflows/release.yml/badge.svg)](https://github.com/jwjohns/dgx-spark-cli/actions/workflows/release.yml)
 ![Tests](https://img.shields.io/github/actions/workflow/status/jwjohns/dgx-spark-cli/release.yml?label=tests&logo=go)
 
-A powerful CLI tool to manage connections, SSH tunnels, GPU monitoring, and AI/ML workloads for your DGX Spark system.
+A powerful CLI tool to manage connections, SSH tunnels, GPU monitoring, and AI/ML workloads for your DGX Spark system. Works both **remotely** (over SSH from your laptop) and **locally** (running directly on the DGX Spark).
 
 ## Features
 
+- **Local & Remote Modes** - Run from your laptop over SSH, or directly on the DGX with `dgx config set-local`
 - **SSH Connection Management** - Quick access to your DGX Spark
 - **Dynamic Port Forwarding** - Create and manage SSH tunnels on the fly
 - **GPU Monitoring** - Real-time GPU status, memory usage, and process tracking
@@ -63,19 +64,37 @@ cd dgx-spark-cli
 
 ## Quick Start
 
-### 1. Configure Your DGX Connection
+### Option A: Running directly on the DGX Spark (local mode)
+
+If you are logged into the DGX Spark itself, use local mode — no SSH configuration needed:
+
+```bash
+# One-command setup
+dgx config set-local
+
+# Verify
+dgx status
+dgx gpu
+```
+
+In local mode, all commands execute directly on the machine. SSH tunnels, key setup, and file sync over SSH are skipped automatically.
+
+### Option B: Managing the DGX remotely (SSH mode)
+
+If you are on your laptop or another machine:
 
 ```bash
 dgx config set
 ```
 
 The interactive setup will guide you through:
+- **Local vs. remote** — asks if you are running on the DGX first
 - **Hostname/IP** of your DGX Spark
 - **SSH port** (default: 22)
 - **Username** for SSH access
-- **SSH key** - automatically detects existing keys or provides setup instructions
+- **SSH key** — automatically detects existing keys or provides setup instructions
 
-**Note**: When NVIDIA Sync is installed (macOS, Ubuntu, or Windows), `dgx config set` pre-loads the host, user, port, and Sync-managed SSH key (e.g., `~/Library/Application Support/NVIDIA/Sync/config/ssh_config` on macOS, `~/.local/share/NVIDIA/Sync/config/ssh_config` on Ubuntu, `%APPDATA%/NVIDIA/Sync/config/ssh_config` on Windows). On Arch—or any system without Sync—the wizard falls back to your standard `~/.ssh/id_ed25519` / `id_rsa` keys and shows you how to generate and upload a key if needed.
+**Note**: When NVIDIA Sync is installed (macOS, Ubuntu, or Windows), `dgx config set` pre-loads the host, user, port, and Sync-managed SSH key (e.g., `~/Library/Application Support/NVIDIA/Sync/config/ssh_config` on macOS, `~/.local/share/NVIDIA/Sync/config/ssh_config` on Ubuntu, `%APPDATA%/NVIDIA/Sync/config/ssh_config` on Windows). On Arch — or any system without Sync — the wizard falls back to your standard `~/.ssh/id_ed25519` / `id_rsa` keys and shows you how to generate and upload a key if needed.
 
 ### 2. Test Connection
 
@@ -88,6 +107,8 @@ dgx status
 ```bash
 dgx connect
 ```
+
+> **Switching modes:** Run `dgx config set` again to switch between local and remote, or use `dgx config set-local` as a shortcut to enter local mode.
 
 ## Usage
 
@@ -359,7 +380,9 @@ dgx tunnel kill-all
 
 ## Configuration
 
-Configuration is stored in `~/.config/dgx/config.yaml`:
+Configuration is stored in `~/.config/dgx/config.yaml`.
+
+**Remote mode (SSH):**
 
 ```yaml
 host: dgx-spark.example.com
@@ -369,7 +392,13 @@ identity_file: /home/user/.ssh/id_ed25519
 tunnels: []
 ```
 
-You can edit this file manually or use `dgx config set`. If NVIDIA Sync metadata is present (macOS/Ubuntu/Windows), the CLI seeds this file automatically the first time you run it so those platforms work without additional prompts while other distros continue to use the standard SSH key locations.
+**Local mode (running on the DGX):**
+
+```yaml
+local: true
+```
+
+You can edit this file manually or use `dgx config set`. Use `dgx config set-local` for a quick one-command switch to local mode. If NVIDIA Sync metadata is present (macOS/Ubuntu/Windows), the CLI seeds the remote config automatically the first time you run it so those platforms work without additional prompts while other distros continue to use the standard SSH key locations.
 
 ## Security
 

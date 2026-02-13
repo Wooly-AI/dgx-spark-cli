@@ -4,10 +4,11 @@ import "time"
 
 // Config represents the DGX connection configuration
 type Config struct {
-	Host         string `yaml:"host"`
-	Port         int    `yaml:"port"`
-	User         string `yaml:"user"`
-	IdentityFile string `yaml:"identity_file"`
+	Local        bool     `yaml:"local,omitempty"`
+	Host         string   `yaml:"host"`
+	Port         int      `yaml:"port"`
+	User         string   `yaml:"user"`
+	IdentityFile string   `yaml:"identity_file"`
 	Tunnels      []Tunnel `yaml:"tunnels,omitempty"`
 }
 

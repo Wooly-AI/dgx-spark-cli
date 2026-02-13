@@ -69,6 +69,28 @@ var configSetCmd = &cobra.Command{
 	Short: "Set DGX configuration interactively",
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := cfgManager.Get()
+
+		// Check if running locally on the DGX
+		fmt.Print("Are you running directly on the DGX Spark? [y/N]: ")
+		var localMode string
+		fmt.Scanln(&localMode)
+		if strings.ToLower(localMode) == "y" {
+			cfg.Local = true
+			if err := cfgManager.Set(cfg); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: Failed to save config: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println()
+			fmt.Println("Local mode configured!")
+			fmt.Println("Commands will execute directly on this machine.")
+			fmt.Println()
+			fmt.Println("Next steps:")
+			fmt.Println("  dgx status    # Verify local mode")
+			fmt.Println("  dgx gpu       # Check GPU status")
+			return
+		}
+		cfg.Local = false
+
 		home, _ := os.UserHomeDir()
 
 		defaultKeys := []string{
@@ -220,11 +242,34 @@ var configShowCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := cfgManager.Get()
 		fmt.Println("DGX Configuration:")
-		fmt.Printf("  Host:         %s\n", cfg.Host)
-		fmt.Printf("  Port:         %d\n", cfg.Port)
-		fmt.Printf("  User:         %s\n", cfg.User)
-		fmt.Printf("  Identity File: %s\n", cfg.IdentityFile)
+		if cfg.Local {
+			fmt.Println("  Mode:         local (direct execution)")
+		} else {
+			fmt.Printf("  Host:         %s\n", cfg.Host)
+			fmt.Printf("  Port:         %d\n", cfg.Port)
+			fmt.Printf("  User:         %s\n", cfg.User)
+			fmt.Printf("  Identity File: %s\n", cfg.IdentityFile)
+		}
 		fmt.Printf("  Config Path:  %s\n", cfgManager.GetConfigPath())
+	},
+}
+
+var configSetLocalCmd = &cobra.Command{
+	Use:   "set-local",
+	Short: "Configure for local execution (running directly on the DGX)",
+	Run: func(cmd *cobra.Command, args []string) {
+		cfg := cfgManager.Get()
+		cfg.Local = true
+		if err := cfgManager.Set(cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: Failed to save config: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Local mode configured!")
+		fmt.Println("Commands will execute directly on this machine.")
+		fmt.Println()
+		fmt.Println("Next steps:")
+		fmt.Println("  dgx status    # Verify local mode")
+		fmt.Println("  dgx gpu       # Check GPU status")
 	},
 }
 
@@ -240,7 +285,11 @@ var connectCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		fmt.Printf("Connecting to %s@%s...\n", cfgManager.Get().User, cfgManager.Get().Host)
+		if cfgManager.Get().Local {
+			fmt.Println("Local mode — opening a new shell.")
+		} else {
+			fmt.Printf("Connecting to %s@%s...\n", cfgManager.Get().User, cfgManager.Get().Host)
+		}
 		if err := client.InteractiveShell(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -254,25 +303,31 @@ var statusCmd = &cobra.Command{
 	Short: "Check DGX connection status",
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := cfgManager.Get()
-		client, err := ssh.NewClient(cfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+
+		if cfg.Local {
+			fmt.Println("Mode: local (direct execution on DGX)")
+			fmt.Println("Status: active")
+		} else {
+			client, err := ssh.NewClient(cfg)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Printf("Checking connection to %s@%s:%d...\n", cfg.User, cfg.Host, cfg.Port)
+			latency, err := client.CheckConnection()
+			if err != nil {
+				fmt.Printf("Connection failed: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Printf("Connected (latency: %v)\n", latency)
+
+			// Check for active tunnels
+			tm := tunnel.NewManager(cfg)
+			tunnels, _ := tm.List()
+			fmt.Printf("Active tunnels: %d\n", len(tunnels))
 		}
-
-		fmt.Printf("Checking connection to %s@%s:%d...\n", cfg.User, cfg.Host, cfg.Port)
-		latency, err := client.CheckConnection()
-		if err != nil {
-			fmt.Printf("Connection failed: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Printf("Connected (latency: %v)\n", latency)
-
-		// Check for active tunnels
-		tm := tunnel.NewManager(cfg)
-		tunnels, _ := tm.List()
-		fmt.Printf("Active tunnels: %d\n", len(tunnels))
 	},
 }
 
@@ -289,6 +344,11 @@ var tunnelCreateCmd = &cobra.Command{
 	Aliases: []string{"add", "new"},
 	Args:    cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		if cfgManager.Get().Local {
+			fmt.Println("Tunnels are not needed in local mode — services are accessible directly on localhost.")
+			return
+		}
+
 		parts := strings.Split(args[0], ":")
 		if len(parts) != 2 {
 			fmt.Fprintf(os.Stderr, "Error: Invalid format. Use <local-port>:<remote-port>\n")
@@ -453,9 +513,14 @@ Examples:
 		dest := args[1]
 		cfg := cfgManager.Get()
 
-		// Replace "dgx:" with actual SSH path
-		source = strings.ReplaceAll(source, "dgx:", fmt.Sprintf("%s@%s:", cfg.User, cfg.Host))
-		dest = strings.ReplaceAll(dest, "dgx:", fmt.Sprintf("%s@%s:", cfg.User, cfg.Host))
+		// Replace "dgx:" prefix
+		if cfg.Local {
+			source = strings.ReplaceAll(source, "dgx:", "")
+			dest = strings.ReplaceAll(dest, "dgx:", "")
+		} else {
+			source = strings.ReplaceAll(source, "dgx:", fmt.Sprintf("%s@%s:", cfg.User, cfg.Host))
+			dest = strings.ReplaceAll(dest, "dgx:", fmt.Sprintf("%s@%s:", cfg.User, cfg.Host))
+		}
 
 		deleteFlag, _ := cmd.Flags().GetBool("delete")
 
@@ -476,6 +541,11 @@ var setupKeyCmd = &cobra.Command{
 	Long:  `Helps you copy your SSH public key to the DGX for passwordless authentication.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := cfgManager.Get()
+
+		if cfg.Local {
+			fmt.Println("SSH key setup is not needed in local mode.")
+			return
+		}
 
 		// Check if public key exists
 		pubKeyPath := cfg.IdentityFile + ".pub"
@@ -731,12 +801,20 @@ func ensureRemoteDirectory(path string) error {
 
 func syncDirectoryToRemote(localPath, remotePath string, deleteExtraneous bool) error {
 	cfg := cfgManager.Get()
-	sshCmd := fmt.Sprintf("ssh -i %q -p %d", cfg.IdentityFile, cfg.Port)
 	local := ensureTrailingSlash(localPath)
-	remote := fmt.Sprintf("%s@%s:%s", cfg.User, cfg.Host, ensureTrailingSlash(remotePath))
-	args := []string{"-az", "-e", sshCmd}
+	args := []string{"-az"}
+	if !cfg.Local {
+		sshCmd := fmt.Sprintf("ssh -i %q -p %d", cfg.IdentityFile, cfg.Port)
+		args = append(args, "-e", sshCmd)
+	}
 	if deleteExtraneous {
 		args = append(args, "--delete")
+	}
+	var remote string
+	if cfg.Local {
+		remote = ensureTrailingSlash(remotePath)
+	} else {
+		remote = fmt.Sprintf("%s@%s:%s", cfg.User, cfg.Host, ensureTrailingSlash(remotePath))
 	}
 	args = append(args, local, remote)
 	cmd := exec.Command("rsync", args...)
@@ -770,6 +848,12 @@ func runMutagen(args ...string) {
 }
 
 func resolveRemotePath(input string, cfg *types.Config) string {
+	if cfg.Local {
+		if strings.HasPrefix(input, "dgx:") {
+			return strings.TrimPrefix(input, "dgx:")
+		}
+		return input
+	}
 	if strings.HasPrefix(input, "dgx:") {
 		return fmt.Sprintf("ssh://%s@%s:%d/%s", cfg.User, cfg.Host, cfg.Port, strings.TrimPrefix(input, "dgx:"))
 	}
@@ -887,6 +971,11 @@ var mutagenCreateCmd = &cobra.Command{
 	Short: "Create a Mutagen sync session",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
+		if cfgManager.Get().Local {
+			fmt.Println("Mutagen sync is not needed in local mode — files are already on this machine.")
+			return
+		}
+
 		ensureMutagen()
 		name, _ := cmd.Flags().GetString("name")
 		if name == "" {
@@ -1029,6 +1118,7 @@ func init() {
 	// config subcommands
 	configCmd.AddCommand(configSetCmd)
 	configCmd.AddCommand(configShowCmd)
+	configCmd.AddCommand(configSetLocalCmd)
 
 	// tunnel subcommands
 	tunnelCmd.AddCommand(tunnelCreateCmd)

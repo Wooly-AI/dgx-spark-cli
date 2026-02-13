@@ -29,6 +29,10 @@ func NewClient(config *types.Config) (*Client, error) {
 
 // Connect establishes an SSH connection
 func (c *Client) Connect() error {
+	if c.config.Local {
+		return nil
+	}
+
 	// Load SSH key
 	key, err := os.ReadFile(c.config.IdentityFile)
 	if err != nil {
@@ -117,10 +121,10 @@ func (c *Client) Connect() error {
 
 // Close closes the SSH connection
 func (c *Client) Close() error {
-	if c.client != nil {
-		return c.client.Close()
+	if c.config.Local || c.client == nil {
+		return nil
 	}
-	return nil
+	return c.client.Close()
 }
 
 // addHostKey adds the host key to known_hosts
@@ -155,6 +159,15 @@ func (c *Client) addHostKey() error {
 
 // Execute runs a command on the remote host
 func (c *Client) Execute(command string) (string, error) {
+	if c.config.Local {
+		cmd := exec.Command("bash", "-c", command)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return string(output), fmt.Errorf("command failed: %w", err)
+		}
+		return string(output), nil
+	}
+
 	// Ensure we're connected
 	if c.client == nil {
 		if err := c.Connect(); err != nil {
@@ -185,6 +198,14 @@ func (c *Client) Execute(command string) (string, error) {
 
 // InteractiveShell starts an interactive SSH shell
 func (c *Client) InteractiveShell() error {
+	if c.config.Local {
+		cmd := exec.Command("bash", "-l")
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+
 	// Use native SSH command for interactive shell (better terminal handling)
 	args := []string{
 		"-i", c.config.IdentityFile,
@@ -202,6 +223,14 @@ func (c *Client) InteractiveShell() error {
 
 // RunInteractive executes a command on the remote host with local stdin/stdout attached.
 func (c *Client) RunInteractive(command string) error {
+	if c.config.Local {
+		cmd := exec.Command("bash", "-lc", command)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+
 	args := []string{
 		"-i", c.config.IdentityFile,
 		"-p", fmt.Sprintf("%d", c.config.Port),
@@ -219,6 +248,10 @@ func (c *Client) RunInteractive(command string) error {
 
 // CheckConnection tests the connection without keeping it open
 func (c *Client) CheckConnection() (time.Duration, error) {
+	if c.config.Local {
+		return 0, nil
+	}
+
 	start := time.Now()
 
 	if err := c.Connect(); err != nil {
@@ -232,6 +265,10 @@ func (c *Client) CheckConnection() (time.Duration, error) {
 
 // ForwardPort creates an SSH tunnel
 func (c *Client) ForwardPort(localPort, remotePort int, remoteHost string) error {
+	if c.config.Local {
+		return fmt.Errorf("port forwarding is not needed in local mode")
+	}
+
 	if c.client == nil {
 		if err := c.Connect(); err != nil {
 			return err
@@ -290,6 +327,13 @@ func (c *Client) handleForward(localConn net.Conn, remoteHost string, remotePort
 
 // CopyFile transfers a file using SCP
 func (c *Client) CopyFile(source, dest string) error {
+	if c.config.Local {
+		cmd := exec.Command("cp", "-r", source, dest)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+
 	args := []string{
 		"-i", c.config.IdentityFile,
 		"-P", fmt.Sprintf("%d", c.config.Port),
@@ -307,6 +351,18 @@ func (c *Client) CopyFile(source, dest string) error {
 
 // Rsync syncs files using rsync over SSH
 func (c *Client) Rsync(source, dest string, deleteExtraneous bool) error {
+	if c.config.Local {
+		args := []string{"-avz", "--progress"}
+		if deleteExtraneous {
+			args = append(args, "--delete")
+		}
+		args = append(args, source, dest)
+		cmd := exec.Command("rsync", args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+
 	args := []string{
 		"-avz",
 		"--progress",

@@ -158,5 +158,5 @@ func (m *Manager) GetConfigPath() string {
 
 // IsConfigured checks if the essential configuration is set
 func (m *Manager) IsConfigured() bool {
-	return m.config.Host != "" && m.config.User != ""
+	return m.config.Local || (m.config.Host != "" && m.config.User != "")
 }
